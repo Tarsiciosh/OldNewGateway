@@ -1,6 +1,6 @@
 ﻿namespace OldNewGateway
 {
-    partial class Service1
+    partial class OldNewGateway
     {
         /// <summary> 
         /// Required designer variable.
@@ -28,10 +28,18 @@
         /// </summary>
         private void InitializeComponent()
         {
-            components = new System.ComponentModel.Container();
-            this.ServiceName = "Service1";
+            this.myEventLog = new System.Diagnostics.EventLog();
+            ((System.ComponentModel.ISupportInitialize)(this.myEventLog)).BeginInit();
+            // 
+            // OldNewGateway
+            // 
+            this.ServiceName = "OldNewGateway";
+            ((System.ComponentModel.ISupportInitialize)(this.myEventLog)).EndInit();
+
         }
 
         #endregion
+
+        private System.Diagnostics.EventLog myEventLog;
     }
 }
