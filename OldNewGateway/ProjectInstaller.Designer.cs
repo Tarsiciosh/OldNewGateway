@@ -44,6 +44,7 @@
             this.serviceInstaller1.DisplayName = "Old-New Gateway";
             this.serviceInstaller1.ServiceName = "OldNewGateway";
             this.serviceInstaller1.StartType = System.ServiceProcess.ServiceStartMode.Automatic;
+            this.serviceInstaller1.AfterInstall += new System.Configuration.Install.InstallEventHandler(this.serviceInstaller1_AfterInstall);
             // 
             // ProjectInstaller
             // 
