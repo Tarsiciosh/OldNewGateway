@@ -65,18 +65,24 @@ namespace OldNewGateway
             }
         }
 
-        static int maxStationNumber = 5;
-        Station[] stations = new Station[maxStationNumber];
-
         public enum SearchType
         {
             FirstOcurrence = 0,
             LastOcurrence = 1
         }
 
+        static int maxStationNumber = 100;
+        static int maxErrorCount = 10;
+
+        private int errorCount;
+        private int eventID;
+        Station[] stations = new Station[maxStationNumber];
+        Timer myTimer = new Timer();
+
         public OldNewGateway()
         {
             InitializeComponent();
+
             myEventLog = new System.Diagnostics.EventLog();
             if (!System.Diagnostics.EventLog.SourceExists("OldNewGatewaySource"))
             {
@@ -96,14 +102,14 @@ namespace OldNewGateway
             */
 
             // set up a timer that triggers every second
-            Timer myTimer = new Timer();
+            
             myTimer.Interval = 1000; // 1 second
             myTimer.Elapsed += new ElapsedEventHandler(this.OnTimer);
             myTimer.Start();
 
+            errorCount = 0;
             getStationInfo(); 
-
-            myEventLog.WriteEntry("started");
+            myEventLog.WriteEntry("Started");
             // Update the service state to Running.
             /*serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
@@ -112,8 +118,10 @@ namespace OldNewGateway
 
         protected override void OnContinue()
         {
-            getStationInfo(); 
-            myEventLog.WriteEntry("started again");
+            errorCount = 0;
+            eventID = 0;
+            getStationInfo();
+            myEventLog.WriteEntry("Started again");
         }
 
         protected override void OnStop()
@@ -126,7 +134,7 @@ namespace OldNewGateway
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
             */
 
-            myEventLog.WriteEntry("stopped");
+            myEventLog.WriteEntry("Stopped");
 
             // Update the service state to Stopped.
             /*serviceStatus.dwCurrentState = ServiceState.SERVICE_STOPPED;
@@ -137,7 +145,15 @@ namespace OldNewGateway
         public void OnTimer (object sender, ElapsedEventArgs args)
         {
             // myEventLog.WriteEntry("monitoring the system", EventLogEntryType.Information, eventID++);
-            readAndWriteStationData();     
+            if (errorCount > maxErrorCount)
+            {
+                myEventLog.WriteEntry("Too many errors, timer stopped. Please check errors and re-start the service", EventLogEntryType.Error);
+                myTimer.Stop();         
+            }
+            else
+            {
+                readAndWriteStationData();
+            }     
         }
 
         private void getStationInfo()
@@ -172,7 +188,7 @@ namespace OldNewGateway
             }
             catch (Exception theException) 
             {
-                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
+                myEventLog.WriteEntry($"Error: {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
             }
         }
 
@@ -306,14 +322,16 @@ namespace OldNewGateway
                         DateTime localDate = DateTime.Now;
                         var culture = new CultureInfo("en-GB");
                         stations[i].lastActivityDate = localDate.ToString(culture);
-                        myEventLog.WriteEntry($"Station: {stations[i].name} last activity: {stations[i].lastActivityDate}" );
+                        myEventLog.WriteEntry($"Station {stations[i].name} ({stations[i].ip}), last activity {stations[i].lastActivityDate}",
+                            EventLogEntryType.Information, ++eventID);
                     }
                     i++; if (i >= maxStationNumber) break;
                 }
             }
             catch (Exception theException) 
             {
-                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
+                myEventLog.WriteEntry($"Error: {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
+                errorCount++;
             }
         }
 
@@ -356,7 +374,8 @@ namespace OldNewGateway
             }
             catch (Exception theException) 
             {
-                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
+                myEventLog.WriteEntry($"Error: {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
+                errorCount++;
                 return null;
             }
         }
@@ -377,7 +396,8 @@ namespace OldNewGateway
             }
             catch (Exception theException)
             {
-                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
+                myEventLog.WriteEntry($"Error: {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
+                errorCount++;
                 return null;
             }
         }
@@ -397,7 +417,8 @@ namespace OldNewGateway
             }
             catch (Exception theException)
             {
-                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
+                myEventLog.WriteEntry($"Error: {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
+                errorCount++;
                 return null;
             }
         }

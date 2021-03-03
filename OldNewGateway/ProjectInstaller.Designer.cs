@@ -40,7 +40,7 @@
             // 
             // serviceInstaller1
             // 
-            this.serviceInstaller1.Description = "gateway to convert the old resutl format to the new one";
+            this.serviceInstaller1.Description = "Gateway to convert the new result format (json) to the old one (txt)";
             this.serviceInstaller1.DisplayName = "Old-New Gateway";
             this.serviceInstaller1.ServiceName = "OldNewGateway";
             this.serviceInstaller1.StartType = System.ServiceProcess.ServiceStartMode.Automatic;
