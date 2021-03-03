@@ -88,8 +88,6 @@ namespace OldNewGateway
 
         protected override void OnStart(string[] args)
         {
-            myEventLog.WriteEntry("OldNewGateway started");
-
             // Update the service state to Start Pending.
             /*ServiceStatus serviceStatus = new ServiceStatus();  
             serviceStatus.dwCurrentState = ServiceState.SERVICE_START_PENDING;
@@ -103,9 +101,9 @@ namespace OldNewGateway
             myTimer.Elapsed += new ElapsedEventHandler(this.OnTimer);
             myTimer.Start();
 
-            getStationInfo(); // (SERVICE START)
+            getStationInfo(); 
 
-            myEventLog.WriteEntry("OldNewGateway started");
+            myEventLog.WriteEntry("started");
             // Update the service state to Running.
             /*serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
@@ -114,7 +112,8 @@ namespace OldNewGateway
 
         protected override void OnContinue()
         {
-            myEventLog.WriteEntry("OldNewGateway started again");
+            getStationInfo(); 
+            myEventLog.WriteEntry("started again");
         }
 
         protected override void OnStop()
@@ -127,7 +126,7 @@ namespace OldNewGateway
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
             */
 
-            myEventLog.WriteEntry("OldNewGateway stopped");
+            myEventLog.WriteEntry("stopped");
 
             // Update the service state to Stopped.
             /*serviceStatus.dwCurrentState = ServiceState.SERVICE_STOPPED;
@@ -143,31 +142,38 @@ namespace OldNewGateway
 
         private void getStationInfo()
         {
-            System.IO.StreamReader configFile;
-            string configString;
-
-            string[] lines;
-            string[] fields;
-
-            configFile = System.IO.File.OpenText("C:\\OldNewGateway\\config\\stations.csv");
-            configString = configFile.ReadToEnd();
-            lines = configString.Split(new char[] { '\x0D', '\x0A' }, StringSplitOptions.RemoveEmptyEntries);
-
-            int i = -1;
-            foreach (string line in lines)
+            try
             {
-                if (i == -1) i = 0;
-                else // skip the first line
+                System.IO.StreamReader configFile;
+                string configString;
+
+                string[] lines;
+                string[] fields;
+
+                configFile = System.IO.File.OpenText("C:\\OldNewGateway\\config\\stations.csv");
+                configString = configFile.ReadToEnd();
+                lines = configString.Split(new char[] { '\x0D', '\x0A' }, StringSplitOptions.RemoveEmptyEntries);
+
+                int i = -1;
+                foreach (string line in lines)
                 {
-                    fields = line.Split(';');
-                    stations[i].name = fields[0];
-                    stations[i].ip = fields[1];
-                    stations[i].originPath = fields[2];
-                    stations[i].destinationPath = fields[3];
-                    i++;
+                    if (i == -1) i = 0;
+                    else // skip the first line
+                    {
+                        fields = line.Split(';');
+                        stations[i].name = fields[0];
+                        stations[i].ip = fields[1];
+                        stations[i].originPath = fields[2];
+                        stations[i].destinationPath = fields[3];
+                        i++;
+                    }
                 }
+                configFile.Close();
             }
-            configFile.Close();
+            catch (Exception theException) 
+            {
+                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
+            }
         }
 
         private void readAndWriteStationData()
@@ -182,7 +188,7 @@ namespace OldNewGateway
                 while (!String.IsNullOrEmpty(stations[i].name))
                 {
                     IEnumerable<string> filePaths = System.IO.Directory.EnumerateFiles(stations[i].originPath, "*.json", System.IO.SearchOption.AllDirectories);
-                    foreach (string originFilePath in filePaths) //all the .json files in that folder and subfolders
+                    foreach (string originFilePath in filePaths) //all .json files in that folder and subfolders!
                     {
                         int index;
                         string result, prg, cycle, date, id, qc, row, column, step, Tmin, T, Tmax, Amin, A, Amax;
@@ -305,52 +311,54 @@ namespace OldNewGateway
                     i++; if (i >= maxStationNumber) break;
                 }
             }
-            catch (Exception theException) //catch and report the error if there is any
+            catch (Exception theException) 
             {
-                string errorMessage;
-                errorMessage = "Error:";
-                errorMessage = String.Concat(errorMessage, theException.Message);
-                errorMessage = String.Concat(errorMessage, "Line: ");
-                errorMessage = String.Concat(errorMessage, theException.Source);
-                //MessageBox.Show(errorMessage, "Error");
-                //System.Windows.Forms.Application.Exit();
+                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
             }
         }
 
         private string getData(string source, string name, int fromIndex, SearchType t)
         {
-            int index = 0, i;
-            string result = "";
+            try
+            { 
+                int index = 0, i;
+                string result = "";
 
-            char[] charArray = source.ToCharArray();
+                char[] charArray = source.ToCharArray();
 
-            if (t == SearchType.FirstOcurrence)
-                index = source.IndexOf("\"" + name + "\":", fromIndex);
+                if (t == SearchType.FirstOcurrence)
+                    index = source.IndexOf("\"" + name + "\":", fromIndex);
 
-            if (t == SearchType.LastOcurrence)
-                index = source.LastIndexOf("\"" + name + "\":");
+                if (t == SearchType.LastOcurrence)
+                    index = source.LastIndexOf("\"" + name + "\":");
 
-            index = index + name.Length + 4; // two quotation marks, one colon and a space
+                index = index + name.Length + 4; // two quotation marks, one colon and a space
 
-            if (charArray[index] == '"') // STRING CASE!
-            {
-                i = 1; // offset of the quotation mark
-                while (charArray[i + index] != '"')
+                if (charArray[index] == '"') // STRING CASE!
                 {
-                    result = result.Insert(result.Length, charArray[i + index].ToString());
-                    i++;
+                    i = 1; // offset of the quotation mark
+                    while (charArray[i + index] != '"')
+                    {
+                        result = result.Insert(result.Length, charArray[i + index].ToString());
+                        i++;
+                    }
                 }
-            }
-            else // NUMBER CASE!
-            {
-                i = 0; // no offset
-                while (charArray[i + index] != ',' && charArray[i + index] != ' ')
+                else // NUMBER CASE!
                 {
-                    result = result.Insert(result.Length, charArray[i + index].ToString());
-                    i++;
+                    i = 0; // no offset
+                    while (charArray[i + index] != ',' && charArray[i + index] != ' ')
+                    {
+                        result = result.Insert(result.Length, charArray[i + index].ToString());
+                        i++;
+                    }
                 }
+                return result;
             }
-            return result;
+            catch (Exception theException) 
+            {
+                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
+                return null;
+            }
         }
 
         private string cutAndShift(string s, int n)
@@ -367,14 +375,9 @@ namespace OldNewGateway
                 s = s.Substring(0, n); // last cut
                 return s;
             }
-            catch (Exception theException) //catch and report the error if there is any
+            catch (Exception theException)
             {
-                string errorMessage;
-                errorMessage = "Error:";
-                errorMessage = String.Concat(errorMessage, theException.Message);
-                errorMessage = String.Concat(errorMessage, "Line: ");
-                errorMessage = String.Concat(errorMessage, theException.Source);
-                //MessageBox.Show(errorMessage, "Error");
+                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
                 return null;
             }
         }
@@ -392,14 +395,9 @@ namespace OldNewGateway
                 }
                 return s;
             }
-            catch (Exception theException) //catch and report the error if there is any
+            catch (Exception theException)
             {
-                string errorMessage;
-                errorMessage = "Error:";
-                errorMessage = String.Concat(errorMessage, theException.Message);
-                errorMessage = String.Concat(errorMessage, "Line: ");
-                errorMessage = String.Concat(errorMessage, theException.Source);
-                //MessageBox.Show(errorMessage, "Error");
+                myEventLog.WriteEntry($"Error: {theException.Message} Line: {theException.Source}");
                 return null;
             }
         }
