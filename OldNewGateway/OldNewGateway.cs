@@ -109,7 +109,7 @@ namespace OldNewGateway
 
             errorCount = 0;
             getStationInfo(); 
-            myEventLog.WriteEntry("Started");
+            myEventLog.WriteEntry("Started - version 001");
             // Update the service state to Running.
             /*serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
@@ -265,6 +265,8 @@ namespace OldNewGateway
                         modelFile = System.IO.File.OpenText("C:\\OldNewGateway\\file models\\model.txt");
                         destinationString = modelFile.ReadToEnd(); // read as string
 
+
+                        // WRITE DESTINATION STRING
                         //ID code souce and ID code
                         destinationString = destinationString.Insert(12 - 1, id);
 
@@ -307,7 +309,11 @@ namespace OldNewGateway
 
                         index = destinationString.IndexOf('\x0A', index + 1); // hardware ID and channel no.
 
-                        destinationFilePath = System.IO.Path.Combine(stations[i].destinationPath, "test-result.txt");
+                        string fileName = System.IO.Path.GetFileName(originFilePath);
+
+                        fileName = fileName.Replace(".json", ".txt");
+
+                        destinationFilePath = System.IO.Path.Combine(stations[i].destinationPath, fileName);
                         destinationFile = System.IO.File.CreateText(destinationFilePath);
 
                         destinationFile.Write(destinationString.ToCharArray());
