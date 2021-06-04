@@ -47,6 +47,11 @@ namespace OldNewGateway
         private static extern bool SetServiceStatus(System.IntPtr handle, ref ServiceStatus serviceStatus);
         */
 
+        // CONSTANTS :
+        static int maxStationNumber = 100;
+        static int maxErrorCount = 10;
+
+
         struct Station
         {
             public string name;
@@ -60,7 +65,7 @@ namespace OldNewGateway
                 this.name = name;
                 this.ip = ip;
                 this.originPath = originPath;
-                this.destinationPath = destinationPath;
+                this.destinationPath = destinationPath; 
                 this.lastActivityDate = lastActivityDate;
             }
         }
@@ -71,8 +76,7 @@ namespace OldNewGateway
             LastOcurrence = 1
         }
 
-        static int maxStationNumber = 100;
-        static int maxErrorCount = 10;
+      
 
         private int errorCount;
         private int eventID;
@@ -110,6 +114,7 @@ namespace OldNewGateway
             errorCount = 0;
             getStationInfo(); 
             myEventLog.WriteEntry("Started - version 001");
+
             // Update the service state to Running.
             /*serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
             SetServiceStatus(this.ServiceHandle, ref serviceStatus);
