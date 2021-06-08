@@ -275,8 +275,6 @@ namespace OldNewGateway
                         nextStep = "trying to get MF TorqueMin";
                         index = originString.LastIndexOf("MF TorqueMin");
 
-                        
-                      
                         if (index != -1)
                         {
                             Tmin = getData(originString, "nom", index, SearchType.FirstOcurrence);
@@ -301,7 +299,7 @@ namespace OldNewGateway
                         if (index != -1)
                         {
                             Amin = getData(originString, "nom", index, SearchType.FirstOcurrence);
-                            Amin = expandAndShift(Amin, 8);
+                            Amin = cutAndShift(Amin, 8);
                         }
                         else Amin = null;
 
@@ -310,7 +308,7 @@ namespace OldNewGateway
                         if (index != -1)
                         {
                             Amax = getData(originString, "nom", index, SearchType.FirstOcurrence);
-                            Amax = expandAndShift(Amax, 8);
+                            Amax = cutAndShift(Amax, 8);
                         }
                         else Amax = null;
 
@@ -496,9 +494,16 @@ namespace OldNewGateway
         {
             try
             {
-                //if (n > s.Length) return null;
                 int indexOfPoint = s.IndexOf(".");
-                char[] charArray = s.ToCharArray();
+                if (indexOfPoint == -1)
+                {
+                    s = s.Insert(s.Length, ".");
+                    s = s.Insert(s.Length, "0");
+                    s = s.Insert(s.Length, "0");
+                }
+
+                indexOfPoint = s.IndexOf(".");
+        
                 for (int i = 0; i < (n - indexOfPoint - 3); i++) // round in 2 decimals
                 {
                     s = s.Insert(0, " ");
@@ -521,9 +526,7 @@ namespace OldNewGateway
         {
             try
             {
-                //if (n < s.Length) return null;
-                char[] charArray = s.ToCharArray();
-                int len = s.Length;
+                int len = s.Length;   
                 for (int i = 0; i < (n - len); i++)
                 {
                     s = s.Insert(0, " ");
