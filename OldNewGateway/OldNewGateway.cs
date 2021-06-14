@@ -209,12 +209,10 @@ namespace OldNewGateway
             }
         }
 
-        private void readAndWriteStationData()
+        private async void readAndWriteStationData()
         {
             try
             {
-               
-
                 int i = 0;
                 while (!String.IsNullOrEmpty(stations[i].name))
                 {
@@ -226,9 +224,11 @@ namespace OldNewGateway
                         string originString, destinationString;
                         string destinationFilePath;
 
-
                         // READ ORIGIN FILE
                         originFile = System.IO.File.OpenText(originFilePath);
+
+                        
+                               
                         originString = originFile.ReadToEnd();
 
                         nextStep = "trying to get result";
@@ -394,8 +394,8 @@ namespace OldNewGateway
                         nextStep = "trying to write qc";
                         destinationString = destinationString.Insert(index + 11, qc);
 
-                        nextStep = "trying to write  3";
-                        destinationString = destinationString.Insert(index + 18, " 3");
+                        nextStep = "trying to write  X";
+                        destinationString = destinationString.Insert(index + 18, " X");
 
                         index = destinationString.IndexOf('\x0A', index + 1); // consecutive no. and program no.
 
