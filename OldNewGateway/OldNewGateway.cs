@@ -13,40 +13,8 @@ using System.Globalization;
 
 namespace OldNewGateway
 {
-    /* // PENDING STATUS
-    public enum ServiceState
-    {
-        SERVICE_STOPPED = 0x00000001,
-        SERVICE_START_PENDING = 0x00000002,
-        SERVICE_STOP_PENDING = 0x00000003,
-        SERVICE_RUNNING = 0x00000004,
-        SERVICE_CONTINUE_PENDING = 0x00000005,
-        SERVICE_PAUSE_PENDING = 0x00000006,
-        SERVICE_PAUSED = 0x00000007,
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct ServiceStatus
-    {
-        public int dwServiceType;
-        public ServiceState dwCurrentState;
-        public int dwControlsAccepted;
-        public int dwWin32ExitCode;
-        public int dwServiceSpecificExitCode;
-        public int dwCheckPoint;
-        public int dwWaitHint;
-    };
-    */
-
-
     public partial class OldNewGateway : ServiceBase
     {
-        //private int eventID = 1;
-        /* // PENDING STATUS
-        [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool SetServiceStatus(System.IntPtr handle, ref ServiceStatus serviceStatus);
-        */
-
         // CONSTANTS :
         static string version = "001";
         static int maxStationNumber = 100;
@@ -81,10 +49,15 @@ namespace OldNewGateway
         private int eventID;
         private string nextStep; 
 
+     
+      
         System.IO.StreamReader originFile;
-        System.IO.StreamReader modelFile;
         System.IO.StreamWriter destinationFile;
+        string destinationString;
 
+        System.IO.StreamReader modelFile;
+        string modelString;
+      
         Station[] stations = new Station[maxStationNumber];
         Timer myTimer = new Timer();
 
@@ -106,24 +79,16 @@ namespace OldNewGateway
         }
 
         protected override void OnStart(string[] args)
-        {
-            // Update the service state to Start Pending.
-            /*ServiceStatus serviceStatus = new ServiceStatus();  
-            serviceStatus.dwCurrentState = ServiceState.SERVICE_START_PENDING;
-            serviceStatus.dwWaitHint = 100000;
-            SetServiceStatus(this.ServiceHandle, ref serviceStatus);
-            */
-            
+        {      
             getStationInfo(); 
             myEventLog.WriteEntry($"Started - version {version}");
 
+            // READ MODEL FILE - only once - improvement
+            modelFile = System.IO.File.OpenText("C:\\OldNewGateway\\file models\\model.txt");
+            modelString = modelFile.ReadToEnd(); // read as string
+
             errorCount = 0;
             myTimer.Start();
-
-            // Update the service state to Running.
-            /*serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
-            SetServiceStatus(this.ServiceHandle, ref serviceStatus);
-            */
         }
 
         protected override void OnContinue()
@@ -136,35 +101,16 @@ namespace OldNewGateway
 
         protected override void OnStop()
         {
-            // Update the service state to Stop Pending.
-            /*
-            ServiceStatus serviceStatus = new ServiceStatus();
-            serviceStatus.dwCurrentState = ServiceState.SERVICE_STOP_PENDING;
-            serviceStatus.dwWaitHint = 100000;
-            SetServiceStatus(this.ServiceHandle, ref serviceStatus);
-            */
-
             myEventLog.WriteEntry($"Stopped - version {version}");
-            myTimer.Stop();
-
-            //----> it should also stop the timer!!
-
-            // Update the service state to Stopped.
-            /*serviceStatus.dwCurrentState = ServiceState.SERVICE_STOPPED;
-            SetServiceStatus(this.ServiceHandle, ref serviceStatus);
-            */  
+            myTimer.Stop();  
         }
 
-        public void OnTimer (object sender, ElapsedEventArgs args)
+        private void OnTimer (object sender, ElapsedEventArgs args)
         {
             // myEventLog.WriteEntry("monitoring the system", EventLogEntryType.Information, eventID++);
             if (errorCount > maxErrorCount)
             {
                 myEventLog.WriteEntry("Too many errors, execution stopped. Please check errors and re-start the service", EventLogEntryType.Error);
-                // Close all possible opened files just in case
-                //originFile.Close();
-                //modelFile.Close();
-                //destinationFile.Close();
                 myTimer.Stop();         
             }
             else
@@ -209,7 +155,7 @@ namespace OldNewGateway
             }
         }
 
-        private async void readAndWriteStationData()
+        private void readAndWriteStationData()
         {
             try
             {
@@ -221,13 +167,11 @@ namespace OldNewGateway
                     {
                         int index;
                         string result, prg, cycle, date, id, qc, row, column, step, Tmin, T, Tmax, Amin, A, Amax;
-                        string originString, destinationString;
+                        string originString; 
                         string destinationFilePath;
 
                         // READ ORIGIN FILE
                         originFile = System.IO.File.OpenText(originFilePath);
-
-                        
                                
                         originString = originFile.ReadToEnd();
 
@@ -313,11 +257,11 @@ namespace OldNewGateway
                         else Amax = null;
 
 
-                        // READ MODEL FILE
-                        modelFile = System.IO.File.OpenText("C:\\OldNewGateway\\file models\\model.txt");
-                        destinationString = modelFile.ReadToEnd(); // read as string
+
 
                         // WRITE DESTINATION STRING
+
+                        destinationString = modelString;
 
                         //ID code souce and ID code
 
