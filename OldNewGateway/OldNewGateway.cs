@@ -71,7 +71,7 @@ namespace OldNewGateway
 
             // set up a timer
             myTimer.Interval = 2000; // 2 seconds
-            myTimer.Elapsed += new ElapsedEventHandler(this.OnTimer);
+            myTimer.Elapsed += new ElapsedEventHandler(this.OnTimer); 
         }
 
         protected override void OnStart(string[] args)
