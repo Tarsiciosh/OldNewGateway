@@ -61,6 +61,8 @@ namespace OldNewGateway
         {
             InitializeComponent();
 
+            InitializeBackgroundWorker();
+
             myEventLog = new System.Diagnostics.EventLog();
             if (!System.Diagnostics.EventLog.SourceExists("OldNewGatewaySource"))
             {
@@ -74,15 +76,17 @@ namespace OldNewGateway
             myTimer.Elapsed += new ElapsedEventHandler(this.OnTimer); 
         }
 
+
         protected override void OnStart(string[] args)
         {
-            getStationInfo();
+            getStationsInfo();
             myEventLog.WriteEntry($"Started - version {version}");
 
             modelFile = System.IO.File.OpenText("C:\\OldNewGateway\\file models\\model.txt");
             modelString = modelFile.ReadToEnd();
 
             errorCount = 0;
+
             myTimer.Start();
         }
 
@@ -90,7 +94,7 @@ namespace OldNewGateway
         {
             errorCount = 0;
             eventID = 0;
-            getStationInfo();
+            getStationsInfo();
             myEventLog.WriteEntry($"Started again - version {version}");
         }
 
@@ -114,7 +118,7 @@ namespace OldNewGateway
             }
         }
 
-        private void getStationInfo()
+        private void getStationsInfo()
         {
             try
             {
@@ -150,7 +154,9 @@ namespace OldNewGateway
             }
         }
 
-        private void processStationsData()
+
+
+        private void processStationsData() 
         {
             try
             {
