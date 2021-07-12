@@ -61,7 +61,7 @@ namespace OldNewGateway
         {
             InitializeComponent();
 
-            InitializeBackgroundWorker();
+            InitializeWorker();
 
             myEventLog = new System.Diagnostics.EventLog();
             if (!System.Diagnostics.EventLog.SourceExists("OldNewGatewaySource"))
@@ -74,6 +74,14 @@ namespace OldNewGateway
             // set up a timer
             myTimer.Interval = 2000; // 2 seconds
             myTimer.Elapsed += new ElapsedEventHandler(this.OnTimer); 
+        }
+        
+        private void InitializeWorker()
+        {
+            worker.WorkerReportsProgress = true;
+            worker.DoWork += new DoWorkEventHandler(worker_DoWork);
+            worker.ProgressChanged += new ProgressChangedEventHandler(woker_ProgressChanged);
+            worker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(worker_RunWorkerCompleted);
         }
 
 
@@ -114,7 +122,10 @@ namespace OldNewGateway
             }
             else
             {
-                processStationsData();
+                if (worker.IsBusy != true)
+                {
+                    worker.RunWorkerAsync();
+                }
             }
         }
 
@@ -155,6 +166,31 @@ namespace OldNewGateway
         }
 
 
+        private void worker_DoWork(object sender, DoWorkEventArgs e)
+        {
+            //myEventLog.WriteEntry($"<DoWork> Writing from worker", EventLogEntryType.SuccessAudit);
+            //worker.ReportProgress(100); //finish
+
+            processStationsData();
+            worker.ReportProgress(100);
+        }
+
+        private void woker_ProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            myEventLog.WriteEntry($"<ProgressChanged> ...", EventLogEntryType.SuccessAudit);
+        }
+
+        private void worker_RunWorkerCompleted (object sender, RunWorkerCompletedEventArgs e)
+        {
+            if (e.Error != null)
+            {
+                myEventLog.WriteEntry($"<RunWorkerCompleted> Error!! {e.Error.Message}", EventLogEntryType.Error);
+            }
+            else
+            {
+                myEventLog.WriteEntry($"<RunWorkerCompleted> Done!", EventLogEntryType.SuccessAudit);
+            }
+        }
 
         private void processStationsData() 
         {
@@ -514,5 +550,378 @@ namespace OldNewGateway
             }
         }
 
+       
     }
 }
+
+
+
+/* OLD: USING THREADS
+ * 
+        private void processStationsData() 
+        {
+            try
+            {
+                int i = 0;
+                while (!String.IsNullOrEmpty(stations[i].name))
+                {
+                    stations[i].thread = new Thread(readAndWriteStationData);
+                    stations[i].thread.Start(stations[i]);
+
+                    i++; if (i >= maxStationNumber) break;
+                }
+                i = 0;
+                while (!String.IsNullOrEmpty(stations[i].name))
+                {
+                    stations[i].thread.Join();
+                    i++; if (i >= maxStationNumber) break;
+                }
+            }
+            catch (Exception theException)
+            {
+                myEventLog.WriteEntry($"<processStationsData> Error {nextStep}. {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
+                errorCount++;
+            }
+        }
+
+        private void readAndWriteStationData(Object obj)
+        {
+            Station station;
+
+            System.IO.StreamReader originFile;
+            System.IO.StreamWriter destinationFile;
+
+            string originString;
+            string destinationString;
+
+            string destinationFilePath;
+            int index;
+            string result, prg, cycle, date, id, qc, row, column, step, Tmin, T, Tmax, Amin, A, Amax;
+
+            try
+            {
+                station = (Station)obj;
+
+                IEnumerable<string> filePaths = System.IO.Directory.EnumerateFiles(station.originPath, "*.json", System.IO.SearchOption.AllDirectories);
+                foreach (string originFilePath in filePaths) //all .json files in that folder and subfolders!
+                {
+                    // READ ORIGIN FILE
+                    originFile = System.IO.File.OpenText(originFilePath);
+
+                    originString = originFile.ReadToEnd();
+
+                    nextStep = "trying to get result";
+                    result = getData(originString, "result", 0, SearchType.FirstOcurrence);
+
+                    nextStep = "trying to get prg nr";
+                    prg = getData(originString, "prg nr", 0, SearchType.FirstOcurrence);
+                    prg = expandAndShift(prg, 2);
+
+                    nextStep = "trying to get cycle";
+                    cycle = getData(originString, "cycle", 0, SearchType.FirstOcurrence);
+                    cycle = expandAndShift(cycle, 7);
+
+                    nextStep = "trying to get date";
+                    date = getData(originString, "date", 0, SearchType.FirstOcurrence);
+                    date = date.Insert(11, "H ");
+
+                    nextStep = "trying to get id code";
+                    id = getData(originString, "id code", 0, SearchType.FirstOcurrence);
+                    id = id + "_xxx";
+
+                    nextStep = "trying to get quality code";
+                    qc = getData(originString, "quality code", 0, SearchType.FirstOcurrence);
+                    qc = expandAndShift(qc, 3);
+
+                    // ... last result
+                    nextStep = "trying to get row";
+                    row = getData(originString, "row", 0, SearchType.LastOcurrence);
+                    row = expandAndShift(row, 2);
+
+                    nextStep = "trying to get column";
+                    column = getData(originString, "column", 0, SearchType.LastOcurrence);
+
+                    step = row.Insert(row.Length, column);
+
+                    nextStep = "trying to get torque";
+                    T = getData(originString, "torque", 0, SearchType.LastOcurrence);
+                    T = cutAndShift(T, 5);
+
+                    nextStep = "trying to get angle";
+                    A = getData(originString, "angle", 0, SearchType.LastOcurrence);
+                    A = cutAndShift(A, 8);
+
+                    nextStep = "trying to get MF TorqueMin";
+                    index = originString.LastIndexOf("MF TorqueMin");
+
+                    if (index != -1)
+                    {
+                        Tmin = getData(originString, "nom", index, SearchType.FirstOcurrence);
+                        Tmin = cutAndShift(Tmin, 5);
+                    }
+                    else Tmin = null;
+
+                    nextStep = "trying to get MFs TorqueMax";
+                    index = originString.LastIndexOf("MFs TorqueMax");
+
+                    //myEventLog.WriteEntry($"MFs TorqueMax index = {index}", EventLogEntryType.Warning);
+
+                    if (index != -1)
+                    {
+                        Tmax = getData(originString, "nom", index, SearchType.FirstOcurrence);
+                        Tmax = cutAndShift(Tmax, 5);
+                    }
+                    else Tmax = null;
+
+                    nextStep = "trying to get MFU AngleMin";
+                    index = originString.LastIndexOf("MF AngleMin");
+                    if (index != -1)
+                    {
+                        Amin = getData(originString, "nom", index, SearchType.FirstOcurrence);
+                        Amin = cutAndShift(Amin, 8);
+                    }
+                    else Amin = null;
+
+                    nextStep = "trying to get MFs AngleMax";
+                    index = originString.LastIndexOf("MFs AngleMax");
+                    if (index != -1)
+                    {
+                        Amax = getData(originString, "nom", index, SearchType.FirstOcurrence);
+                        Amax = cutAndShift(Amax, 8);
+                    }
+                    else Amax = null;
+
+
+                    // WRITE DESTINATION STRING
+
+                    destinationString = modelString;
+
+                    //ID code souce and ID code
+
+                    nextStep = "trying to write id";
+                    destinationString = destinationString.Insert(12 - 1, id);
+
+                    index = destinationString.IndexOf('\x0A');
+
+                    index = destinationString.IndexOf('\x0A', index + 1); // date, time    
+                    nextStep = "trying to write date";
+                    destinationString = destinationString.Insert(index + 3, date);
+
+                    index = destinationString.IndexOf('\x0A', index + 1); // measured values with result
+
+                    nextStep = "trying to write T";
+                    if (T != null) destinationString = destinationString.Insert(index + 6, T);
+                    else destinationString = destinationString.Insert(index + 6, "     ");
+
+                    nextStep = "trying to write A";
+                    if (A != null) destinationString = destinationString.Insert(index + 14, A);
+                    else destinationString = destinationString.Insert(index + 14, "        ");
+
+                    nextStep = "trying to write G";
+                    destinationString = destinationString.Insert(index + 28, "     "); // G gradient
+
+                    nextStep = "trying to write result";
+                    destinationString = destinationString.Insert(index + 34, result);
+
+                    index = destinationString.IndexOf('\x0A', index + 1); // redundancy values (optional)
+
+                    nextStep = "trying to write MR";
+                    destinationString = destinationString.Insert(index + 6, "     "); // MR: 5 spaces 
+
+                    nextStep = "trying to write WR";
+                    destinationString = destinationString.Insert(index + 14, "        "); // WR: 8 spaces
+
+                    nextStep = "trying to write QR";
+                    destinationString = destinationString.Insert(index + 26, " 0"); // QR: " 0"
+
+
+                    index = destinationString.IndexOf('\x0A', index + 1); // angle limits
+
+                    nextStep = "trying to write Amin";
+                    if (Amin != null) destinationString = destinationString.Insert(index + 3, Amin);
+                    else destinationString = destinationString.Insert(index + 3, "        ");
+
+                    nextStep = "trying to write Amax";
+                    if (Amax != null) destinationString = destinationString.Insert(index + 14, Amax);
+                    else destinationString = destinationString.Insert(index + 14, "        ");
+
+                    index = destinationString.IndexOf('\x0A', index + 1); // torque limits
+
+                    nextStep = "trying to write Tmin";
+                    if (Tmin != null) destinationString = destinationString.Insert(index + 6, Tmin);
+                    else destinationString = destinationString.Insert(index + 6, "     ");
+
+                    nextStep = "trying to write Tmax";
+                    if (Tmax != null) destinationString = destinationString.Insert(index + 17, Tmax);
+                    else destinationString = destinationString.Insert(index + 17, "     ");
+
+                    index = destinationString.IndexOf('\x0A', index + 1); // gradient limits
+
+                    nextStep = "trying to write G-";
+                    destinationString = destinationString.Insert(index + 5, "      ");
+
+                    nextStep = "trying to write G+";
+                    destinationString = destinationString.Insert(index + 17, "     ");
+
+                    index = destinationString.IndexOf('\x0A', index + 1); // step, quality code, stopped by
+
+                    nextStep = "trying to write step";
+                    destinationString = destinationString.Insert(index + 3, step);
+
+                    nextStep = "trying to write qc";
+                    destinationString = destinationString.Insert(index + 11, qc);
+
+                    nextStep = "trying to write  X";
+                    destinationString = destinationString.Insert(index + 18, " X");
+
+                    index = destinationString.IndexOf('\x0A', index + 1); // consecutive no. and program no.
+
+                    nextStep = "trying to write cycle";
+                    destinationString = destinationString.Insert(index + 3, cycle);
+
+                    nextStep = "trying to write prg";
+                    destinationString = destinationString.Insert(index + 13, prg);
+
+                    index = destinationString.IndexOf('\x0A', index + 1); // hardware ID and channel no.
+
+                    string fileName = System.IO.Path.GetFileName(originFilePath);
+
+                    fileName = fileName.Replace(".json", ".txt");
+
+                    destinationFilePath = System.IO.Path.Combine(station.destinationPath, fileName);
+                    destinationFile = System.IO.File.CreateText(destinationFilePath);
+
+                    destinationFile.Write(destinationString.ToCharArray());
+
+                    destinationFile.Flush();
+
+                    originFile.Close();
+                    destinationFile.Close();
+
+                    System.IO.File.Delete(originFilePath);
+
+                    DateTime localDate = DateTime.Now;
+                    var culture = new CultureInfo("en-GB");
+                    station.lastActivityDate = localDate.ToString(culture);
+                    myEventLog.WriteEntry($"Station {station.name} ({station.ip}), last activity {station.lastActivityDate}",
+                    EventLogEntryType.Information, ++eventID);
+                }
+            }
+            catch (Exception theException)
+            {
+                myEventLog.WriteEntry($"<readAndWriteStationData> Error {nextStep}. {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
+                errorCount++;
+            }
+        } 
+
+        private string getData(string source, string name, int fromIndex, SearchType t)
+        {
+            try
+            { 
+                int index = 0, i;
+                string result = "";
+
+                char[] charArray = source.ToCharArray();
+
+                if (t == SearchType.FirstOcurrence)
+                    index = source.IndexOf("\"" + name + "\":", fromIndex); //e.g. '"result": '
+
+                if (t == SearchType.LastOcurrence)
+                    index = source.LastIndexOf("\"" + name + "\":");
+
+                if (index == 0) // NO MATCHING FOUND
+                {
+                    myEventLog.WriteEntry($"Error trying to get: {name}", EventLogEntryType.Warning);
+                    return null;
+                }
+
+                index = index + name.Length + 4; // two quotation marks, one colon and a space
+
+                if (charArray[index] == '"') // STRING CASE!
+                {
+                    i = 1; // offset of the quotation mark
+                    while (charArray[i + index] != '"')
+                    {
+                        result = result.Insert(result.Length, charArray[i + index].ToString());
+                        i++;
+                    }
+                }
+                else // NUMBER CASE!
+                {
+                    i = 0; // no offset
+                    while (charArray[i + index] != ',' && charArray[i + index] != ' ')
+                    {
+                        result = result.Insert(result.Length, charArray[i + index].ToString());
+                        i++;
+                    }
+                }
+                return result;
+            }
+            catch (Exception theException) 
+            {
+                myEventLog.WriteEntry($"<getData> Error trying to get: {name}. {theException.Message}  Source: {theException.Source}", EventLogEntryType.Error);
+                errorCount++;
+                return null;
+            }
+        }
+
+        private string cutAndShift(string s, int n)
+        {
+            try
+            {
+                int indexOfPoint = s.IndexOf(".");
+                if (indexOfPoint == -1)
+                {
+                    s = s.Insert(s.Length, ".");
+                    s = s.Insert(s.Length, "0");
+                    s = s.Insert(s.Length, "0");
+                }
+
+                indexOfPoint = s.IndexOf(".");
+        
+                for (int i = 0; i < (n - indexOfPoint - 3); i++) // round in 2 decimals
+                {
+                    s = s.Insert(0, " ");
+                }
+
+                //TODO: add a point and two decimals when the value has no decimals
+
+                s = s.Substring(0, n); // last cut
+                return s;
+            }
+            catch (Exception theException)
+            {
+                myEventLog.WriteEntry($"<cutAndShift> Error: {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
+                errorCount++;
+                return null;
+            }
+        }
+
+        private string expandAndShift(string s, int n)
+        {
+            try
+            {
+                int len = s.Length;   
+                for (int i = 0; i < (n - len); i++)
+                {
+                    s = s.Insert(0, " ");
+                }
+                return s;
+            }
+            catch (Exception theException)
+            {
+                myEventLog.WriteEntry($"<expandAndShift> Error: {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
+                errorCount++;
+                return null;
+            }
+        }
+
+       
+    }
+}
+ * 
+ * 
+ * 
+ * 
+ * 
+ */

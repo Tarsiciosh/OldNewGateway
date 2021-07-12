@@ -29,7 +29,12 @@
         private void InitializeComponent()
         {
             this.myEventLog = new System.Diagnostics.EventLog();
+            this.worker = new System.ComponentModel.BackgroundWorker();
             ((System.ComponentModel.ISupportInitialize)(this.myEventLog)).BeginInit();
+            // 
+            // worker
+            // 
+            this.worker.DoWork += new System.ComponentModel.DoWorkEventHandler(this.worker_DoWork);
             // 
             // OldNewGateway
             // 
@@ -41,5 +46,6 @@
         #endregion
 
         private System.Diagnostics.EventLog myEventLog;
+        private System.ComponentModel.BackgroundWorker worker;
     }
 }
