@@ -78,9 +78,7 @@ namespace OldNewGateway
         
         private void InitializeWorker()
         {
-            worker.WorkerReportsProgress = true;
-            worker.DoWork += new DoWorkEventHandler(worker_DoWork);
-            worker.ProgressChanged += new ProgressChangedEventHandler(woker_ProgressChanged);
+            worker.DoWork += new DoWorkEventHandler(worker_DoWork); 
             worker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(worker_RunWorkerCompleted);
         }
 
@@ -171,24 +169,30 @@ namespace OldNewGateway
             //myEventLog.WriteEntry($"<DoWork> Writing from worker", EventLogEntryType.SuccessAudit);
             //worker.ReportProgress(100); //finish
 
-            processStationsData();
-            worker.ReportProgress(100);
-        }
+            //var culture = new CultureInfo("en-GB");
 
-        private void woker_ProgressChanged(object sender, ProgressChangedEventArgs e)
-        {
-            myEventLog.WriteEntry($"<ProgressChanged> ...", EventLogEntryType.SuccessAudit);
+            int totalTime;
+            DateTime localDateStart = DateTime.Now;
+                  
+            processStationsData();
+
+            DateTime localDateFinish = DateTime.Now;
+
+            totalTime = localDateFinish.Millisecond - localDateStart.Millisecond;
+
+            myEventLog.WriteEntry($"Worker finished work in {totalTime}", EventLogEntryType.Information);
+
         }
 
         private void worker_RunWorkerCompleted (object sender, RunWorkerCompletedEventArgs e)
         {
             if (e.Error != null)
             {
-                myEventLog.WriteEntry($"<RunWorkerCompleted> Error!! {e.Error.Message}", EventLogEntryType.Error);
+                //myEventLog.WriteEntry($"<RunWorkerCompleted> Error!! {e.Error.Message}", EventLogEntryType.Error);
             }
             else
             {
-                myEventLog.WriteEntry($"<RunWorkerCompleted> Done!", EventLogEntryType.SuccessAudit);
+                //myEventLog.WriteEntry($"<RunWorkerCompleted> Done!", EventLogEntryType.SuccessAudit);
             }
         }
 
