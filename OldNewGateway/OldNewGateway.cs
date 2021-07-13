@@ -11,6 +11,7 @@ using System.Timers;
 using System.Runtime.InteropServices;
 using System.Globalization;
 using System.Threading;
+using System.IO;
 
 namespace OldNewGateway
 {
@@ -28,16 +29,16 @@ namespace OldNewGateway
             public string originPath;
             public string destinationPath;
             public string lastActivityDate;
-            public Thread thread;
+            //public Thread thread;
 
-            public Station(string name, string ip, string originPath, string destinationPath, string lastActivityDate, Thread thread)
+            public Station(string name, string ip, string originPath, string destinationPath, string lastActivityDate) //,Thread thread)
             {
                 this.name = name;
                 this.ip = ip;
                 this.originPath = originPath;
                 this.destinationPath = destinationPath;
                 this.lastActivityDate = lastActivityDate;
-                this.thread = thread;
+                //this.thread = thread;
             }
         }
 
@@ -48,13 +49,17 @@ namespace OldNewGateway
         }
 
         private int errorCount;
-        private int eventID;
+       // private int eventID;
         private string nextStep;
 
-        System.IO.StreamReader modelFile;
+        
         string modelString;
 
-        Station[] stations = new Station[maxStationNumber];
+       
+        Station[] stations;
+
+        int totalCycleTime;
+
         System.Timers.Timer myTimer = new System.Timers.Timer();
 
         public OldNewGateway()
@@ -85,21 +90,20 @@ namespace OldNewGateway
 
         protected override void OnStart(string[] args)
         {
-            getStationsInfo();
-            myEventLog.WriteEntry($"Started - version {version}");
-
+            stations = getStationsInfo();
+            System.IO.StreamReader modelFile;
             modelFile = System.IO.File.OpenText("C:\\OldNewGateway\\file models\\model.txt");
             modelString = modelFile.ReadToEnd();
-
+            modelFile.Close();
             errorCount = 0;
-
             myTimer.Start();
+            myEventLog.WriteEntry($"Started - version {version}");
         }
 
         protected override void OnContinue()
         {
             errorCount = 0;
-            eventID = 0;
+            //eventID = 0;
             getStationsInfo();
             myEventLog.WriteEntry($"Started again - version {version}");
         }
@@ -127,8 +131,8 @@ namespace OldNewGateway
             }
         }
 
-        private void getStationsInfo()
-        {
+        private Station[] getStationsInfo()
+        {     
             try
             {
                 System.IO.StreamReader configFile;
@@ -141,6 +145,8 @@ namespace OldNewGateway
                 configString = configFile.ReadToEnd();
                 lines = configString.Split(new char[] { '\x0D', '\x0A' }, StringSplitOptions.RemoveEmptyEntries);
 
+                Station[] sts = new Station[lines.Length-1]; //the title of each column is not part of a station
+
                 int i = -1;
                 foreach (string line in lines)
                 {
@@ -148,40 +154,28 @@ namespace OldNewGateway
                     else // skip the first line
                     {
                         fields = line.Split(';');
-                        stations[i].name = fields[0];
-                        stations[i].ip = fields[1];
-                        stations[i].originPath = fields[2];
-                        stations[i].destinationPath = fields[3];
+                        sts[i].name = fields[0];
+                        sts[i].ip = fields[1];
+                        sts[i].originPath = fields[2];
+                        sts[i].destinationPath = fields[3];
                         i++;
                     }
                 }
                 configFile.Close();
+              
+                return sts;
             }
             catch (Exception theException)
             {
                 myEventLog.WriteEntry($"<getStationInfo> Error: {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
+                return null;
             }
         }
 
 
         private void worker_DoWork(object sender, DoWorkEventArgs e)
-        {
-            //myEventLog.WriteEntry($"<DoWork> Writing from worker", EventLogEntryType.SuccessAudit);
-            //worker.ReportProgress(100); //finish
-
-            //var culture = new CultureInfo("en-GB");
-
-            int totalTime;
-            DateTime localDateStart = DateTime.Now;
-                  
-            processStationsData();
-
-            DateTime localDateFinish = DateTime.Now;
-
-            totalTime = localDateFinish.Millisecond - localDateStart.Millisecond;
-
-            myEventLog.WriteEntry($"Worker finished work in {totalTime}", EventLogEntryType.Information);
-
+        {       
+            processStationsData();  
         }
 
         private void worker_RunWorkerCompleted (object sender, RunWorkerCompletedEventArgs e)
@@ -197,23 +191,25 @@ namespace OldNewGateway
         }
 
         private void processStationsData() 
-        {
+        {  
             try
             {
-                int i = 0;
-                while (!String.IsNullOrEmpty(stations[i].name))
-                {
-                    stations[i].thread = new Thread(readAndWriteStationData);
-                    stations[i].thread.Start(stations[i]);
+                DateTime localDateStart = DateTime.Now;
 
-                    i++; if (i >= maxStationNumber) break;
-                }
-                i = 0;
-                while (!String.IsNullOrEmpty(stations[i].name))
+
+                //foreach (Station st in stations){
+                //    readAndWriteStationData(st);
+                //}
+
+                for (int i = 0; i< stations.Length; i++)
                 {
-                    stations[i].thread.Join();
-                    i++; if (i >= maxStationNumber) break;
+                    stations[i] = readAndWriteStationData(stations[i]);
                 }
+
+
+                DateTime localDateFinish = DateTime.Now;
+                totalCycleTime = localDateFinish.Millisecond - localDateStart.Millisecond;
+                logStatus(totalCycleTime, stations);
             }
             catch (Exception theException)
             {
@@ -222,7 +218,20 @@ namespace OldNewGateway
             }
         }
 
-        private void readAndWriteStationData(Object obj)
+
+        private void logStatus (int totalTime, Station[] sts)
+        {
+            using (StreamWriter w = new StreamWriter("C:\\OldNewGateway\\log\\log.txt"))
+            {
+                w.WriteLine($"Total time: {totalTime}");
+                foreach (Station st in sts)
+                {
+                    w.WriteLine($"Station: {st.name} ({st.ip}), last activity: {st.lastActivityDate} -");
+                }          
+            }
+        }
+
+        private Station readAndWriteStationData(Object obj)
         {
             Station station;
 
@@ -245,8 +254,9 @@ namespace OldNewGateway
                 {
                     // READ ORIGIN FILE
                     originFile = System.IO.File.OpenText(originFilePath);
-
                     originString = originFile.ReadToEnd();
+                    originFile.Close();
+                    System.IO.File.Delete(originFilePath);
 
                     nextStep = "trying to get result";
                     result = getData(originString, "result", 0, SearchType.FirstOcurrence);
@@ -426,30 +436,39 @@ namespace OldNewGateway
 
                     fileName = fileName.Replace(".json", ".txt");
 
+                    nextStep = "trying to combine paths";
                     destinationFilePath = System.IO.Path.Combine(station.destinationPath, fileName);
+
+                    nextStep = "trying to create destination File";
                     destinationFile = System.IO.File.CreateText(destinationFilePath);
 
+                    nextStep = "trying to write destination File";
                     destinationFile.Write(destinationString.ToCharArray());
 
+                    nextStep = "trying to flush destination File";
                     destinationFile.Flush();
 
-                    originFile.Close();
+                    nextStep = "trying to close destination File";
                     destinationFile.Close();
-
-                    System.IO.File.Delete(originFilePath);
 
                     DateTime localDate = DateTime.Now;
                     var culture = new CultureInfo("en-GB");
                     station.lastActivityDate = localDate.ToString(culture);
-                    myEventLog.WriteEntry($"Station {station.name} ({station.ip}), last activity {station.lastActivityDate}",
-                    EventLogEntryType.Information, ++eventID);
+
+                    //myEventLog.WriteEntry($"Station {station.name} ({station.ip}), last activity {station.lastActivityDate}",
+                    //EventLogEntryType.Information, ++eventID);
+                    return station;
                 }
             }
             catch (Exception theException)
             {
                 myEventLog.WriteEntry($"<readAndWriteStationData> Error {nextStep}. {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
                 errorCount++;
+
+                Station bolazo = new Station();
+                return bolazo;
             }
+            return station;
         } 
 
         private string getData(string source, string name, int fromIndex, SearchType t)
@@ -558,6 +577,12 @@ namespace OldNewGateway
     }
 }
 
+
+/* OLD: USING THREAD POOL
+  
+ //ThreadPool.QueueUserWorkItem(readAndWriteStationData, stations[i]); // thread pool
+
+    */
 
 
 /* OLD: USING THREADS
