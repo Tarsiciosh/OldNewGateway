@@ -20,7 +20,7 @@ namespace OldNewGateway
         // CONSTANTS :
         static string version = "001";
         static int maxErrorCount = 10;
-        static int timerInterval = 5000;
+        static int timerInterval = 3000; // in miliseconds
             
         struct  Station
         {
@@ -29,16 +29,6 @@ namespace OldNewGateway
             public string originPath;
             public string destinationPath;
             public string lastActivityDate;
-
-            /*
-            public Station(string name, string ip, string originPath, string destinationPath, string lastActivityDate) //,Thread thread)
-            {
-                this.name = name;
-                this.ip = ip;
-                this.originPath = originPath;
-                this.destinationPath = destinationPath;
-                this.lastActivityDate = lastActivityDate;
-            }*/
         }
 
         public enum SearchType
@@ -59,7 +49,8 @@ namespace OldNewGateway
         {
             InitializeComponent();
 
-            InitializeWorker();
+            worker.DoWork += new DoWorkEventHandler(worker_DoWork);
+            worker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(worker_RunWorkerCompleted);
 
             myEventLog = new System.Diagnostics.EventLog();
             if (!System.Diagnostics.EventLog.SourceExists("OldNewGatewaySource"))
@@ -72,20 +63,11 @@ namespace OldNewGateway
             myTimer.Interval = timerInterval; 
             myTimer.Elapsed += new ElapsedEventHandler(this.OnTimer); 
         }
-        
-        private void InitializeWorker()
-        {
-            worker.DoWork += new DoWorkEventHandler(worker_DoWork); 
-            worker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(worker_RunWorkerCompleted);
-        }
 
         protected override void OnStart(string[] args)
         {
-            stations = getStationsInfo();
-            System.IO.StreamReader modelFile;
-            modelFile = System.IO.File.OpenText("C:\\OldNewGateway\\file models\\model.txt");
-            modelString = modelFile.ReadToEnd();
-            modelFile.Close();
+            stations = getStationsInfo("C:\\OldNewGateway\\config\\stations.csv");
+            modelString = getStringFromFile("C:\\OldNewGateway\\file models\\model.txt");
             errorCount = 0;
             myTimer.Start();
             myEventLog.WriteEntry($"Started - version {version}");
@@ -94,7 +76,7 @@ namespace OldNewGateway
         protected override void OnContinue()
         {
             errorCount = 0;
-            getStationsInfo();
+            stations = getStationsInfo("C:\\OldNewGateway\\config\\stations.csv");
             myEventLog.WriteEntry($"Started again - version {version}");
         }
 
@@ -117,21 +99,27 @@ namespace OldNewGateway
                 {
                     worker.RunWorkerAsync();
                 }
+                else
+                {
+                    myEventLog.WriteEntry($"Overloaded - version {version}", EventLogEntryType.Warning);
+                }
             }
         }
 
-        private Station[] getStationsInfo()
+        private Station[] getStationsInfo(string path)
         {     
             try
-            {
-                System.IO.StreamReader configFile;
+            {     
                 string configString;
 
                 string[] lines;
                 string[] fields;
 
-                configFile = System.IO.File.OpenText("C:\\OldNewGateway\\config\\stations.csv");
-                configString = configFile.ReadToEnd();
+                using (StreamReader r = File.OpenText(path))
+                {
+                    configString = r.ReadToEnd();
+                }
+
                 lines = configString.Split(new char[] { '\x0D', '\x0A' }, StringSplitOptions.RemoveEmptyEntries);
 
                 Station[] sts = new Station[lines.Length-1]; //the title of each column is not part of a station
@@ -149,9 +137,7 @@ namespace OldNewGateway
                         sts[i].destinationPath = fields[3];
                         i++;
                     }
-                }
-                configFile.Close();
-              
+                } 
                 return sts;
             }
             catch (Exception theException)
@@ -161,6 +147,20 @@ namespace OldNewGateway
             }
         }
 
+        private string getStringFromFile(string path)
+        {
+            /*
+            System.IO.StreamReader theFile = System.IO.File.OpenText(path);
+            string theString = theFile.ReadToEnd();
+            theFile.Close();
+            */
+
+            using (StreamReader r = File.OpenText(path))
+            {
+                string theString = r.ReadToEnd();
+                return theString;
+            }
+        }
 
         private void worker_DoWork(object sender, DoWorkEventArgs e)
         {       
@@ -203,26 +203,23 @@ namespace OldNewGateway
         {
             using (StreamWriter w = new StreamWriter("C:\\OldNewGateway\\log\\log.txt"))
             {
-                w.WriteLine($"Total time: {totalTime}");
+                w.WriteLine($"{totalTime}");
                 foreach (Station st in sts)
                 {
-                    w.WriteLine($"Station: {st.name} ({st.ip}), last activity: {st.lastActivityDate}");
+                    w.WriteLine($"{st.name};{st.ip};{st.lastActivityDate}");
                 }          
             }
         }
 
         private Station readAndWriteStationData(Object obj)
         {
-            System.IO.StreamReader originFile;
-            System.IO.StreamWriter destinationFile;
+            //System.IO.StreamReader originFile;
+            //System.IO.StreamWriter destinationFile;
 
-            string originString;
-            string destinationString;
+        
 
-            string destinationFilePath;
             int index;
             string result, prg, cycle, date, id, qc, row, column, step, Tmin, T, Tmax, Amin, A, Amax;
-
 
             Station station = (Station) obj;
 
@@ -232,10 +229,21 @@ namespace OldNewGateway
                 foreach (string originFilePath in filePaths) //all .json files in that folder and subfolders!
                 {
                     // READ ORIGIN FILE
-                    originFile = System.IO.File.OpenText(originFilePath);
+
+                    /*originFile = System.IO.File.OpenText(originFilePath); // OLD WAY
                     originString = originFile.ReadToEnd();
                     originFile.Close();
+                    string fileName = System.IO.Path.GetFileName(originFilePath);
+                    System.IO.File.Delete(originFilePath);*/
+
+                    string originString;
+                    using (StreamReader r = File.OpenText(originFilePath))
+                    {
+                        originString = r.ReadToEnd();
+                    }
+                    string fileName = System.IO.Path.GetFileName(originFilePath); // get the file name and delete file
                     System.IO.File.Delete(originFilePath);
+
 
                     nextStep = "trying to get result";
                     result = getData(originString, "result", 0, SearchType.FirstOcurrence);
@@ -321,7 +329,7 @@ namespace OldNewGateway
 
                     // WRITE DESTINATION STRING
 
-                    destinationString = modelString;
+                    string destinationString = modelString;
 
                     //ID code souce and ID code
 
@@ -410,25 +418,21 @@ namespace OldNewGateway
                     destinationString = destinationString.Insert(index + 13, prg);
 
                     index = destinationString.IndexOf('\x0A', index + 1); // hardware ID and channel no.
-
-                    string fileName = System.IO.Path.GetFileName(originFilePath);
+                          
 
                     fileName = fileName.Replace(".json", ".txt");
+                    string destinationFilePath = System.IO.Path.Combine(station.destinationPath, fileName);
+                    using (StreamWriter w = new StreamWriter(destinationFilePath))
+                    {
+                        w.Write(destinationString);
+                    }
 
-                    nextStep = "trying to combine paths";
-                    destinationFilePath = System.IO.Path.Combine(station.destinationPath, fileName);
-
-                    nextStep = "trying to create destination File";
-                    destinationFile = System.IO.File.CreateText(destinationFilePath);
-
-                    nextStep = "trying to write destination File";
+                    /*
+                    destinationFile = System.IO.File.CreateText(destinationFilePath); // OLD WAY
                     destinationFile.Write(destinationString.ToCharArray());
-
-                    nextStep = "trying to flush destination File";
                     destinationFile.Flush();
-
-                    nextStep = "trying to close destination File";
                     destinationFile.Close();
+                    */
 
                     DateTime localDate = DateTime.Now;
                     var culture = new CultureInfo("en-GB");
