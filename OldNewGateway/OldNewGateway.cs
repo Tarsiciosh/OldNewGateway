@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using System.Timers;
 using System.Runtime.InteropServices;
 using System.Globalization;
-using System.Threading;
+//using System.Threading;
 using System.IO;
 
 namespace OldNewGateway
@@ -43,7 +43,7 @@ namespace OldNewGateway
         string modelString;
         Station[] stations;
         int totalCycleTime;
-        System.Timers.Timer myTimer = new System.Timers.Timer();
+        Timer myTimer = new System.Timers.Timer();
 
         public OldNewGateway()
         {
@@ -149,12 +149,6 @@ namespace OldNewGateway
 
         private string getStringFromFile(string path)
         {
-            /*
-            System.IO.StreamReader theFile = System.IO.File.OpenText(path);
-            string theString = theFile.ReadToEnd();
-            theFile.Close();
-            */
-
             using (StreamReader r = File.OpenText(path))
             {
                 string theString = r.ReadToEnd();
@@ -171,7 +165,7 @@ namespace OldNewGateway
         {
             if (e.Error != null)
             {
-                //myEventLog.WriteEntry($"<RunWorkerCompleted> Error!! {e.Error.Message}", EventLogEntryType.Error);
+                myEventLog.WriteEntry($"<RunWorkerCompleted> Error!! {e.Error.Message}", EventLogEntryType.Error);
             }
             else
             {
@@ -213,13 +207,8 @@ namespace OldNewGateway
 
         private Station readAndWriteStationData(Object obj)
         {
-            //System.IO.StreamReader originFile;
-            //System.IO.StreamWriter destinationFile;
-
-        
-
             int index;
-            string result, prg, cycle, date, id, qc, row, column, step, Tmin, T, Tmax, Amin, A, Amax;
+            string ip, result, prg, cycle, date, id, qc, row, column, step, Tmin, T, Tmax, Amin, A, Amax;
 
             Station station = (Station) obj;
 
@@ -229,13 +218,6 @@ namespace OldNewGateway
                 foreach (string originFilePath in filePaths) //all .json files in that folder and subfolders!
                 {
                     // READ ORIGIN FILE
-
-                    /*originFile = System.IO.File.OpenText(originFilePath); // OLD WAY
-                    originString = originFile.ReadToEnd();
-                    originFile.Close();
-                    string fileName = System.IO.Path.GetFileName(originFilePath);
-                    System.IO.File.Delete(originFilePath);*/
-
                     string originString;
                     using (StreamReader r = File.OpenText(originFilePath))
                     {
@@ -244,6 +226,9 @@ namespace OldNewGateway
                     string fileName = System.IO.Path.GetFileName(originFilePath); // get the file name and delete file
                     System.IO.File.Delete(originFilePath);
 
+
+                    //nextStep = "trying to get ip";
+                    //station.ip = getData(originString, "ip0", 0, SearchType.FirstOcurrence);
 
                     nextStep = "trying to get result";
                     result = getData(originString, "result", 0, SearchType.FirstOcurrence);
@@ -427,13 +412,6 @@ namespace OldNewGateway
                         w.Write(destinationString);
                     }
 
-                    /*
-                    destinationFile = System.IO.File.CreateText(destinationFilePath); // OLD WAY
-                    destinationFile.Write(destinationString.ToCharArray());
-                    destinationFile.Flush();
-                    destinationFile.Close();
-                    */
-
                     DateTime localDate = DateTime.Now;
                     var culture = new CultureInfo("en-GB");
                     station.lastActivityDate = localDate.ToString(culture);
@@ -443,6 +421,7 @@ namespace OldNewGateway
             }
             catch (Exception theException)
             {
+
                 myEventLog.WriteEntry($"<readAndWriteStationData> Error {nextStep}. {theException.Message} Source: {theException.Source}", EventLogEntryType.Error);
                 errorCount++;
                 return station;
